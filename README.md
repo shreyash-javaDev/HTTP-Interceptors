@@ -1,135 +1,95 @@
-# Assignment 1: HTTP Interceptors
-
-## Week 6 – Angular Advanced
+# Week 6 — Angular Advanced: HTTP Interceptors, Guards & State Management
 
 ## Objective
+Demonstrate REST API consumption, token-based authentication via HTTP
+interceptors, route protection via guards, and lightweight application
+state management, using Angular 17 standalone APIs.
 
-The objective of this assignment is to demonstrate the implementation of advanced Angular concepts including REST API consumption, HTTP interceptors, route guards, and application state management while maintaining clean coding standards and proper documentation.
+## Tech Stack
+- Angular 17 (standalone components, functional interceptors/guards)
+- Angular Signals for state management
+- Reactive Forms
+- Backend: Spring Boot REST API (JWT auth) — see "Backend contract" below
 
----
-
-## Features Implemented
-
-### 1. REST API Integration
-
-* Consumed RESTful APIs using Angular `HttpClient`.
-* Implemented CRUD operations for communicating with backend services.
-* Handled API responses and errors efficiently.
-
-### 2. HTTP Interceptors
-
-* Created Angular HTTP interceptors for handling authentication tokens.
-* Automatically attached JWT/Bearer tokens to outgoing API requests.
-* Managed unauthorized responses (`401 Unauthorized`) globally.
-* Redirected users to the login page when authentication fails.
-
-### 3. Route Guards
-
-* Implemented route guards to protect authenticated routes.
-* Prevented unauthorized users from accessing restricted pages.
-* Allowed access only to authenticated users.
-
-### 4. Application State Management
-
-* Managed application state using Angular services and reactive programming concepts.
-* Shared user authentication state across components.
-* Updated UI dynamically based on authentication status.
-
----
-
-## Project Structure
-
-```text
-src/
-│
-├── app/
-│   ├── components/
-│   ├── services/
+## Folder Structure
+```
+src/app/
+├── core/
 │   ├── interceptors/
+│   │   ├── auth.interceptor.ts     # attaches JWT to outgoing requests
+│   │   └── error.interceptor.ts    # global 401/403 handling
 │   ├── guards/
-│   ├── models/
-│   ├── pages/
-│   ├── shared/
-│   └── app-routing.module.ts
-│
-├── assets/
-└── environments/
+│   │   └── auth.guard.ts           # protects routes needing login
+│   ├── services/
+│   │   ├── auth.service.ts         # login/logout, token + user signals
+│   │   ├── product.service.ts      # HttpClient calls to /api/products
+│   │   └── app-state.service.ts    # centralised app state (signals)
+│   └── models/
+│       ├── user.model.ts
+│       └── product.model.ts
+├── features/
+│   ├── login/login.component.ts
+│   ├── dashboard/dashboard.component.ts   # guarded route
+│   └── products/product-list.component.ts
+├── app.routes.ts
+├── app.config.ts
+└── app.component.ts
 ```
 
----
+## How each requirement is implemented
 
-## Technologies Used
+| Requirement | Where | Notes |
+|---|---|---|
+| Consume REST APIs with HttpClient | `product.service.ts` | Standard CRUD calls; `provideHttpClient()` registered in `app.config.ts` |
+| Interceptor for token handling | `auth.interceptor.ts`, `error.interceptor.ts` | Functional interceptors (`HttpInterceptorFn`), registered via `withInterceptors([...])` |
+| Route guards for authentication | `auth.guard.ts` | Functional guard (`CanActivateFn`), applied to `/dashboard` in `app.routes.ts` |
+| Application state management | `app-state.service.ts`, `auth.service.ts` | Angular Signals: private writable signal + public readonly signal + `computed()` for derived state |
 
-* Angular
-* TypeScript
-* Angular HttpClient
-* RxJS
-* Route Guards
-* HTTP Interceptors
-* REST APIs
-
----
-
-## Installation and Setup
-
-### Clone the Repository
+## Setup Instructions
+This zip is a complete, runnable Angular workspace — no `ng new` needed.
 
 ```bash
-git clone <repository-url>
-cd <project-folder>
-```
-
-### Install Dependencies
-
-```bash
+cd week6-http-interceptors
 npm install
+npm start          # same as: ng serve -o
 ```
+This opens `http://localhost:4200`. You'll land on `/login`.
 
-### Start Development Server
+Verified with `ng build` on Angular 17 before packaging — installs and
+compiles clean.
 
-```bash
-ng serve
-```
+## Backend contract expected
+Point these at your Spring Boot backend (adjust `apiUrl` in the two
+services if your ports/paths differ):
 
-Navigate to:
+- `POST /api/auth/login` — body `{ username, password }` → returns
+  `{ token, user }`
+- `GET /api/products` — requires `Authorization: Bearer <token>` header
+  (attached automatically by `authInterceptor`)
+- Standard REST verbs for `/api/products/{id}` (GET/PUT/DELETE)
 
-```text
-http://localhost:4200
-```
+Any endpoint returning `401` will trigger an automatic logout + redirect
+to `/login` via `errorInterceptor`; a `403` redirects back to
+`/dashboard` (customize this for a proper "access denied" page later).
 
----
+## Key concepts to be ready to explain in review
+- **Why functional interceptors/guards over class-based**: Angular 17
+  standalone apps favor functions + `inject()` — less boilerplate, no
+  `NgModule` needed, and they compose cleanly with `withInterceptors()`.
+- **Interceptor execution order**: request-side runs top-to-bottom
+  through the array passed to `withInterceptors`; response-side
+  (including errors) unwinds bottom-to-top.
+- **Why signals over a Subject/BehaviorSubject service**: signals give
+  synchronous reads (`state.products()` instead of subscribing), automatic
+  change detection integration, and `computed()` for derived values
+  without manual `combineLatest` wiring.
+- **Guard vs interceptor responsibility split**: the guard decides
+  *whether navigation is allowed*; the interceptor decides *what goes
+  on the wire* for every request, guarded route or not.
 
-## Interceptor Workflow
-
-1. User logs into the application.
-2. Authentication token is stored locally.
-3. Interceptor captures every outgoing HTTP request.
-4. Token is added to the request header automatically.
-5. Backend validates the token and returns the response.
-6. If the token is invalid or expired, the interceptor handles the error and redirects the user to the login page.
-
----
-
-## Route Guard Workflow
-
-1. User attempts to access a protected route.
-2. Route guard checks authentication status.
-3. If authenticated, access is granted.
-4. Otherwise, the user is redirected to the login page.
-
----
-
-## Learning Outcomes
-
-After completing this assignment, the following concepts were understood and implemented:
-
-* REST API consumption using Angular HttpClient.
-* Authentication token handling using HTTP interceptors.
-* Securing routes with Angular route guards.
-* Managing application state effectively.
-* Following clean coding practices and documentation standards.
-
----
-
-## Author
-Shreyash Sable 
+## Possible extensions (not required, good talking points in interviews)
+- Refresh-token flow: on 401, attempt silent refresh before logging out.
+- Role-based guard (`canActivate` checking `user.role`) for admin-only
+  routes.
+- Swap `AppStateService` for `@ngrx/signals` `signalStore` once state
+  grows beyond a couple of slices.
